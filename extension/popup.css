@@ -1,0 +1,202 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 320px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #14161a;
+  color: #e6e8ec;
+  font-size: 13px;
+}
+
+.app {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge.disconnected { background: #2a2e36; color: #9aa2b1; }
+.badge.connecting { background: #3b2f13; color: #f5c451; }
+.badge.connected { background: #123524; color: #3ddc84; }
+.badge.error { background: #3b1619; color: #ff6b6b; }
+
+.error {
+  background: #3b1619;
+  color: #ff8a8a;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.hidden { display: none; }
+
+.file-btn {
+  display: block;
+  text-align: center;
+  padding: 8px 12px;
+  background: #232730;
+  border: 1px dashed #3d4452;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #b8c0cc;
+  transition: background 0.15s;
+}
+
+.file-btn:hover {
+  background: #2b303b;
+}
+
+.profiles {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.profile-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #1c1f26;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #282c36;
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.profile-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.profile-name:hover {
+  text-decoration: underline;
+}
+
+.profile-name-input {
+  background: #14161a;
+  border: 1px solid #2f6fed;
+  border-radius: 3px;
+  color: #e6e8ec;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 1px 4px;
+  width: 140px;
+}
+
+.profile-meta {
+  font-size: 11px;
+  color: #848c9a;
+}
+
+.profile-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+button {
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-connect { background: #2f6fed; color: #fff; }
+.btn-connect:hover { background: #255cd0; }
+.btn-disconnect { background: #d94848; color: #fff; }
+.btn-delete { background: #2a2e36; color: #9aa2b1; padding: 5px 7px; }
+.btn-delete:hover { color: #ff6b6b; }
+
+.bypass {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bypass label {
+  font-size: 11px;
+  color: #848c9a;
+}
+
+.bypass input {
+  background: #1c1f26;
+  border: 1px solid #282c36;
+  border-radius: 4px;
+  padding: 6px 8px;
+  color: #e6e8ec;
+  font-size: 12px;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.tab {
+  flex: 1;
+  background: #1c1f26;
+  color: #9aa2b1;
+  border: 1px solid #282c36;
+  padding: 6px;
+  border-radius: 6px;
+}
+
+.tab.active {
+  background: #2f6fed;
+  color: #fff;
+  border-color: #2f6fed;
+}
+
+.proton-auth, .proton-toolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.proton-auth input, .proton-toolbar input {
+  flex: 1;
+  min-width: 0;
+  background: #1c1f26;
+  border: 1px solid #282c36;
+  border-radius: 4px;
+  padding: 6px 8px;
+  color: #e6e8ec;
+  font-size: 12px;
+}

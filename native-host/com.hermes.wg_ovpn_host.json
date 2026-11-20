@@ -1,0 +1,9 @@
+﻿{
+    "path":  "F:\\AI\\hermes\\wg-ovpn-extension\\native-host\\host.bat",
+    "description":  "WG \u0026 OpenVPN Native Messaging Host",
+    "name":  "com.hermes.wg_ovpn_host",
+    "allowed_origins":  [
+                            "chrome-extension://fcpdnfihjgmgdmmdakddfdnaebjdgbcp/"
+                        ],
+    "type":  "stdio"
+}

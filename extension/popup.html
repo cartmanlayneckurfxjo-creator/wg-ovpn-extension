@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WG & OpenVPN Proxy</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="title">WG / OVPN</div>
+      <div id="statusBadge" class="badge disconnected">Disconnected</div>
+    </header>
+
+    <div id="errorBox" class="error hidden"></div>
+
+    <div class="tabs">
+      <button id="tabNative" class="tab active">WG / OVPN</button>
+      <button id="tabProton" class="tab">Proton HTTPS</button>
+    </div>
+
+    <div id="panelNative">
+      <section class="controls">
+        <label class="file-btn">
+          + Import .conf / .ovpn
+          <input id="fileInput" type="file" accept=".conf,.ovpn" multiple hidden />
+        </label>
+      </section>
+
+      <ul id="profileList" class="profiles"></ul>
+
+      <section class="bypass">
+        <label for="portInput">Local SOCKS5 port (for Telegram / apps, 0 = auto)</label>
+        <input id="portInput" type="number" min="0" max="65535" placeholder="3322" />
+      </section>
+    </div>
+
+    <div id="panelProton" class="hidden">
+      <div class="proton-auth">
+        <input id="protonUser" type="text" placeholder="OpenVPN/IKEv2 Username" />
+        <input id="protonPass" type="password" placeholder="OpenVPN/IKEv2 Password" />
+      </div>
+      <div class="proton-toolbar">
+        <input id="protonFilter" type="text" placeholder="Filter (e.g. NL, US, FREE)" />
+        <button id="refreshProton" class="btn-connect">Refresh</button>
+      </div>
+      <div class="proton-toolbar">
+        <input id="protonCustomDomain" type="text" placeholder="Add domain (e.g. nl-free-156.protonvpn.net)" />
+        <button id="addProtonDomain" class="btn-connect">+</button>
+      </div>
+      <ul id="protonList" class="profiles"></ul>
+    </div>
+
+    <section class="bypass">
+      <label for="bypassInput">Bypass list (comma-separated)</label>
+      <input id="bypassInput" type="text" placeholder="localhost, 127.0.0.1, *.local" />
+    </section>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
