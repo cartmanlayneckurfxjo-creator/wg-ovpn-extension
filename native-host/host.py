@@ -60,6 +60,57 @@ def wait_for_port(port: int, proc: subprocess.Popen, timeout: float = 8.0) -> bo
     return False
 
 
+def ensure_wsl_dockerd():
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        chk = subprocess.run(
+            ["wsl", "-d", "Ubuntu", "-u", "root", "docker", "info"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=4,
+            creationflags=flags,
+        )
+        if chk.returncode == 0:
+            return
+    except Exception:
+        pass
+
+    try:
+        subprocess.Popen(
+            ["wsl", "-d", "Ubuntu", "-u", "root", "dockerd"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=flags,
+        )
+        for _ in range(20):
+            time.sleep(0.5)
+            chk = subprocess.run(
+                ["wsl", "-d", "Ubuntu", "-u", "root", "docker", "info"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=3,
+                creationflags=flags,
+            )
+            if chk.returncode == 0:
+                return
+    except Exception:
+        pass
+
+
+def stop_gluetun():
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        subprocess.run(
+            ["wsl", "-d", "Ubuntu", "-u", "root", "sh", "-c", "pkill -f 'openvpn.*gluetun_ovpn' || true; pkill -f 'tinyproxy.*gluetun_ovpn' || true; docker rm -f hermes_ovpn_gluetun >/dev/null 2>&1 || true"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            creationflags=flags,
+        )
+    except Exception:
+        pass
+
+
 def stop_tunnel() -> None:
     global active_proc, active_tmp_dir
     if active_proc is not None:
@@ -75,6 +126,90 @@ def stop_tunnel() -> None:
     if active_tmp_dir is not None:
         shutil.rmtree(active_tmp_dir, ignore_errors=True)
         active_tmp_dir = None
+    stop_gluetun()
+
+
+def start_openvpn(config_text: str, requested_port: int = 0, user: str = "", password: str = "") -> dict:
+    stop_gluetun()
+
+    port = requested_port if 0 < requested_port <= 65535 else 3322
+    wsl_conf_dir = "/tmp/gluetun_ovpn"
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    subprocess.run(["wsl", "-d", "Ubuntu", "-u", "root", "mkdir", "-p", wsl_conf_dir], check=False, creationflags=flags)
+
+    ovpn_clean = config_text.replace("\r\n", "\n")
+    needs_auth = "auth-user-pass" in ovpn_clean and "<auth-user-pass>" not in ovpn_clean
+    if needs_auth and not user:
+        return {"error": "OpenVPN config requires Username & Password (enter them below)"}
+
+    if user:
+        if needs_auth:
+            ovpn_clean = "\n".join(
+                f"auth-user-pass {wsl_conf_dir}/auth.txt" if line.strip().startswith("auth-user-pass") else line
+                for line in ovpn_clean.splitlines()
+            )
+        else:
+            ovpn_clean += f"\nauth-user-pass {wsl_conf_dir}/auth.txt\n"
+        subprocess.run(
+            ["wsl", "-d", "Ubuntu", "-u", "root", "tee", f"{wsl_conf_dir}/auth.txt"],
+            input=f"{user}\n{password}\n".encode("utf-8"),
+            stdout=subprocess.DEVNULL,
+            check=False,
+            creationflags=flags,
+        )
+
+    subprocess.run(
+        ["wsl", "-d", "Ubuntu", "-u", "root", "tee", f"{wsl_conf_dir}/custom.ovpn"],
+        input=ovpn_clean.encode("utf-8"),
+        stdout=subprocess.DEVNULL,
+        check=False,
+        creationflags=flags,
+    )
+
+    tiny_conf = f"Port {port}\nListen 0.0.0.0\nAllow 127.0.0.1\nAllow ::1\nAllow 172.16.0.0/12\nConnectPort 443\nConnectPort 80\n"
+    subprocess.run(
+        ["wsl", "-d", "Ubuntu", "-u", "root", "tee", f"{wsl_conf_dir}/tinyproxy.conf"],
+        input=tiny_conf.encode("utf-8"),
+        stdout=subprocess.DEVNULL,
+        check=False,
+        creationflags=flags,
+    )
+
+    subprocess.Popen(
+        [
+            "wsl", "-d", "Ubuntu", "-u", "root", "sh", "-c",
+            f"rm -f {wsl_conf_dir}/ovpn.log; "
+            f"openvpn --config {wsl_conf_dir}/custom.ovpn --log {wsl_conf_dir}/ovpn.log & "
+            f"tinyproxy -d -c {wsl_conf_dir}/tinyproxy.conf"
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=flags,
+    )
+
+    deadline = time.monotonic() + 45.0
+    while time.monotonic() < deadline:
+        tun_chk = subprocess.run(
+            ["wsl", "-d", "Ubuntu", "-u", "root", "ip", "link", "show", "tun0"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+            creationflags=flags,
+        )
+        if tun_chk.returncode == 0:
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+                    return {"status": "connected", "port": port, "scheme": "http"}
+            except OSError:
+                pass
+        time.sleep(0.5)
+
+    log_res = subprocess.run(
+        ["wsl", "-d", "Ubuntu", "-u", "root", "tail", "-n", "12", f"{wsl_conf_dir}/ovpn.log"],
+        capture_output=True, text=True, creationflags=flags
+    )
+    stop_gluetun()
+    return {"error": log_res.stdout.strip() or "OpenVPN tunnel timed out"}
 
 
 def start_wireguard(config_text: str, requested_port: int = 0) -> dict:
@@ -121,17 +256,6 @@ def start_wireguard(config_text: str, requested_port: int = 0) -> dict:
     return {"status": "connected", "port": port}
 
 
-def start_openvpn(config_text: str) -> dict:
-    global active_proc, active_tmp_dir
-    openvpn = find_binary("openvpn")
-    if not openvpn:
-        return {"error": "openvpn.exe not found in native-host/bin or PATH"}
-
-    return {
-        "error": "OpenVPN creates a system TUN interface (requires Admin + TAP/Wintun), not a local SOCKS5 port. Use WireGuard + wireproxy for browser-only proxy."
-    }
-
-
 def main() -> None:
     try:
         while True:
@@ -147,15 +271,22 @@ def main() -> None:
                 profile = msg.get("profile") or {}
                 ptype = profile.get("type", "wg")
                 config_text = profile.get("config", "")
-                if ptype == "wg":
-                    req_port = int(msg.get("port") or 0)
-                    send_message(start_wireguard(config_text, req_port))
-                elif ptype == "ovpn":
-                    send_message(start_openvpn(config_text))
-                else:
-                    send_message({"error": f"Unknown profile type: {ptype}"})
+                req_port = int(msg.get("port") or 0)
+                try:
+                    if ptype == "wg":
+                        send_message(start_wireguard(config_text, req_port))
+                    elif ptype == "ovpn":
+                        user = msg.get("user", "")
+                        pwd = msg.get("pass", "")
+                        send_message(start_openvpn(config_text, req_port, user, pwd))
+                    else:
+                        send_message({"error": f"Unknown profile type: {ptype}"})
+                except Exception as ex:
+                    send_message({"error": f"Error: {ex}"})
             elif action == "status":
-                send_message({"status": "connected" if active_proc and active_proc.poll() is None else "disconnected"})
+                send_message({"status": "connected" if (active_proc and active_proc.poll() is None) else "disconnected"})
+    except Exception as e:
+        send_message({"error": f"Fatal host error: {e}"})
     finally:
         stop_tunnel()
 

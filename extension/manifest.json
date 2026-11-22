@@ -6,12 +6,7 @@
   "permissions": [
     "proxy",
     "storage",
-    "nativeMessaging",
-    "webRequest",
-    "webRequestAuthProvider"
-  ],
-  "host_permissions": [
-    "<all_urls>"
+    "nativeMessaging"
   ],
   "background": {
     "service_worker": "background.js"

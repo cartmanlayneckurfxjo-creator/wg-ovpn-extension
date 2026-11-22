@@ -1,10 +1,8 @@
 const HOST_NAME = "com.hermes.wg_ovpn_host";
 
 let nativePort = null;
-let protonAuth = null;
 let state = {
   status: "disconnected", // disconnected | connecting | connected | error
-  mode: null, // "native" | "proton"
   activeProfileId: null,
   port: null,
   error: null
@@ -31,7 +29,7 @@ function ensureNativePort() {
   return nativePort;
 }
 
-async function applyProxy(scheme, host, port) {
+async function applyProxy(scheme, port) {
   const { bypassList = ["localhost", "127.0.0.1", "*.local"] } = await chrome.storage.local.get("bypassList");
   await chrome.proxy.settings.set({
     value: {
@@ -39,7 +37,7 @@ async function applyProxy(scheme, host, port) {
       rules: {
         singleProxy: {
           scheme,
-          host,
+          host: "127.0.0.1",
           port: Number(port)
         },
         bypassList
@@ -49,24 +47,6 @@ async function applyProxy(scheme, host, port) {
   });
 }
 
-if (chrome.webRequest && chrome.webRequest.onAuthRequired) {
-  chrome.webRequest.onAuthRequired.addListener(
-    (details) => {
-      if (details.isProxy && protonAuth && protonAuth.username) {
-        return {
-          authCredentials: {
-            username: protonAuth.username,
-            password: protonAuth.password || ""
-          }
-        };
-      }
-      return {};
-    },
-    { urls: ["<all_urls>"] },
-    ["blocking"]
-  );
-}
-
 function clearProxy() {
   chrome.proxy.settings.clear({ scope: "regular" }).catch(() => {});
 }
@@ -74,14 +54,15 @@ function clearProxy() {
 async function handleNativeMessage(msg) {
   if (!msg || typeof msg !== "object") return;
   if (msg.status === "connected" && msg.port) {
-    await applyProxy("socks5", "127.0.0.1", msg.port);
-    setState({ status: "connected", mode: "native", port: msg.port, error: null });
+    const scheme = msg.scheme || "socks5";
+    await applyProxy(scheme, msg.port);
+    setState({ status: "connected", port: msg.port, error: null });
   } else if (msg.status === "disconnected") {
     clearProxy();
-    setState({ status: "disconnected", mode: null, activeProfileId: null, port: null, error: null });
+    setState({ status: "disconnected", activeProfileId: null, port: null, error: null });
   } else if (msg.error) {
     clearProxy();
-    setState({ status: "error", mode: null, activeProfileId: null, port: null, error: msg.error });
+    setState({ status: "error", activeProfileId: null, port: null, error: msg.error });
   }
 }
 
@@ -93,10 +74,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "connect") {
     const { profile } = msg;
     setState({ status: "connecting", activeProfileId: profile.id, error: null });
-    chrome.storage.local.get("localPort").then(({ localPort = 3322 }) => {
+    chrome.storage.local.get(["localPort", "ovpnUser", "ovpnPass", "protonUser", "protonPass"]).then((st) => {
       try {
         const port = ensureNativePort();
-        port.postMessage({ action: "connect", profile, port: Number(localPort) });
+        port.postMessage({
+          action: "connect",
+          profile,
+          port: Number(st.localPort || 3322),
+          user: st.ovpnUser || st.protonUser || "",
+          pass: st.ovpnPass || st.protonPass || ""
+        });
         sendResponse({ ok: true });
       } catch (e) {
         setState({ status: "error", activeProfileId: null, error: String(e) });
@@ -105,35 +92,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     });
     return true;
   }
-  if (msg.type === "fetchProtonServers") {
-    fetch("https://api.protonvpn.ch/vpn/logicals")
-      .then((r) => r.json())
-      .then((json) => sendResponse({ ok: true, data: json }))
-      .catch((e) => sendResponse({ ok: false, error: String(e) }));
-    return true;
-  }
-  if (msg.type === "connectProton") {
-    const { server, username, password } = msg;
-    if (nativePort) {
-      nativePort.postMessage({ action: "disconnect" });
-    }
-    protonAuth = { username, password };
-    applyProxy("https", server.domain, 443).then(() => {
-      setState({ status: "connected", mode: "proton", activeProfileId: server.id, port: 443, error: null });
-      sendResponse({ ok: true });
-    }).catch((e) => {
-      setState({ status: "error", mode: null, activeProfileId: null, error: String(e) });
-      sendResponse({ ok: false, error: String(e) });
-    });
-    return true;
-  }
   if (msg.type === "disconnect") {
-    protonAuth = null;
     clearProxy();
     if (nativePort) {
       nativePort.postMessage({ action: "disconnect" });
     }
-    setState({ status: "disconnected", mode: null, activeProfileId: null, port: null, error: null });
+    setState({ status: "disconnected", activeProfileId: null, port: null, error: null });
     sendResponse({ ok: true });
     return true;
   }

@@ -15,42 +15,27 @@
 
     <div id="errorBox" class="error hidden"></div>
 
-    <div class="tabs">
-      <button id="tabNative" class="tab active">WG / OVPN</button>
-      <button id="tabProton" class="tab">Proton HTTPS</button>
-    </div>
+    <section class="controls">
+      <label class="file-btn">
+        + Import .conf / .ovpn
+        <input id="fileInput" type="file" accept=".conf,.ovpn" multiple hidden />
+      </label>
+    </section>
 
-    <div id="panelNative">
-      <section class="controls">
-        <label class="file-btn">
-          + Import .conf / .ovpn
-          <input id="fileInput" type="file" accept=".conf,.ovpn" multiple hidden />
-        </label>
-      </section>
+    <ul id="profileList" class="profiles"></ul>
 
-      <ul id="profileList" class="profiles"></ul>
+    <section class="bypass">
+      <label for="portInput">Local proxy port (for Telegram / apps, 0 = auto)</label>
+      <input id="portInput" type="number" min="0" max="65535" placeholder="3322" />
+    </section>
 
-      <section class="bypass">
-        <label for="portInput">Local SOCKS5 port (for Telegram / apps, 0 = auto)</label>
-        <input id="portInput" type="number" min="0" max="65535" placeholder="3322" />
-      </section>
-    </div>
-
-    <div id="panelProton" class="hidden">
-      <div class="proton-auth">
-        <input id="protonUser" type="text" placeholder="OpenVPN/IKEv2 Username" />
-        <input id="protonPass" type="password" placeholder="OpenVPN/IKEv2 Password" />
+    <section class="bypass">
+      <label>OpenVPN credentials (if .ovpn requires auth)</label>
+      <div class="auth-row">
+        <input id="ovpnUser" type="text" placeholder="Username" />
+        <input id="ovpnPass" type="password" placeholder="Password" />
       </div>
-      <div class="proton-toolbar">
-        <input id="protonFilter" type="text" placeholder="Filter (e.g. NL, US, FREE)" />
-        <button id="refreshProton" class="btn-connect">Refresh</button>
-      </div>
-      <div class="proton-toolbar">
-        <input id="protonCustomDomain" type="text" placeholder="Add domain (e.g. nl-free-156.protonvpn.net)" />
-        <button id="addProtonDomain" class="btn-connect">+</button>
-      </div>
-      <ul id="protonList" class="profiles"></ul>
-    </div>
+    </section>
 
     <section class="bypass">
       <label for="bypassInput">Bypass list (comma-separated)</label>

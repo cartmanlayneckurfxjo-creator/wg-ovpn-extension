@@ -164,6 +164,16 @@ button {
   font-size: 12px;
 }
 
+.auth-row {
+  display: flex;
+  gap: 6px;
+}
+
+.auth-row input {
+  flex: 1;
+  min-width: 0;
+}
+
 .tabs {
   display: flex;
   gap: 6px;
