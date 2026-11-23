@@ -47,8 +47,13 @@ async function applyProxy(scheme, port) {
   });
 }
 
-function clearProxy() {
-  chrome.proxy.settings.clear({ scope: "regular" }).catch(() => {});
+async function clearProxy() {
+  const { killswitch = false } = await chrome.storage.local.get("killswitch");
+  if (killswitch) {
+    await applyProxy("http", 1).catch(() => {});
+  } else {
+    chrome.proxy.settings.clear({ scope: "regular" }).catch(() => {});
+  }
 }
 
 async function handleNativeMessage(msg) {
@@ -74,7 +79,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "connect") {
     const { profile } = msg;
     setState({ status: "connecting", activeProfileId: profile.id, error: null });
-    chrome.storage.local.get(["localPort", "ovpnUser", "ovpnPass", "protonUser", "protonPass"]).then((st) => {
+    chrome.storage.local.get(["localPort", "ovpnUser", "ovpnPass", "protonUser", "protonPass", "viaTor"]).then((st) => {
       try {
         const port = ensureNativePort();
         port.postMessage({
@@ -82,7 +87,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           profile,
           port: Number(st.localPort || 3322),
           user: st.ovpnUser || st.protonUser || "",
-          pass: st.ovpnPass || st.protonPass || ""
+          pass: st.ovpnPass || st.protonPass || "",
+          viaTor: Boolean(st.viaTor)
         });
         sendResponse({ ok: true });
       } catch (e) {
@@ -101,5 +107,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     sendResponse({ ok: true });
     return true;
   }
+  if (msg.type === "updateKillswitch") {
+    if (state.status !== "connected") {
+      clearProxy();
+    }
+    sendResponse({ ok: true });
+    return true;
+  }
   return false;
 });
+
+if (state.status !== "connected") {
+  clearProxy();
+}

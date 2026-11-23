@@ -6,6 +6,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -14,6 +15,7 @@ BIN_DIR = BASE_DIR / "bin"
 
 active_proc = None
 active_tmp_dir = None
+tor_relay_sock = None
 
 
 def send_message(payload: dict) -> None:
@@ -111,8 +113,66 @@ def stop_gluetun():
         pass
 
 
+def stop_tor_relay() -> None:
+    global tor_relay_sock
+    if tor_relay_sock:
+        try:
+            tor_relay_sock.close()
+        except Exception:
+            pass
+        tor_relay_sock = None
+
+
+def _pipe_sockets(src: socket.socket, dst: socket.socket) -> None:
+    try:
+        while True:
+            data = src.recv(16384)
+            if not data:
+                break
+            dst.sendall(data)
+    except Exception:
+        pass
+    finally:
+        for s in (src, dst):
+            try:
+                s.close()
+            except Exception:
+                pass
+
+
+def start_tor_relay(target_port: int = 9052) -> int:
+    global tor_relay_sock
+    stop_tor_relay()
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(("0.0.0.0", 0))
+    srv.listen(32)
+    tor_relay_sock = srv
+    fwd_port = srv.getsockname()[1]
+
+    def accept_loop():
+        while True:
+            try:
+                client, _ = srv.accept()
+            except Exception:
+                break
+            try:
+                remote = socket.create_connection(("127.0.0.1", target_port), timeout=5.0)
+                threading.Thread(target=_pipe_sockets, args=(client, remote), daemon=True).start()
+                threading.Thread(target=_pipe_sockets, args=(remote, client), daemon=True).start()
+            except Exception:
+                try:
+                    client.close()
+                except Exception:
+                    pass
+
+    threading.Thread(target=accept_loop, daemon=True).start()
+    return fwd_port
+
+
 def stop_tunnel() -> None:
     global active_proc, active_tmp_dir
+    stop_tor_relay()
     if active_proc is not None:
         try:
             active_proc.terminate()
@@ -129,7 +189,7 @@ def stop_tunnel() -> None:
     stop_gluetun()
 
 
-def start_openvpn(config_text: str, requested_port: int = 0, user: str = "", password: str = "") -> dict:
+def start_openvpn(config_text: str, requested_port: int = 0, user: str = "", password: str = "", via_tor: bool = False) -> dict:
     stop_gluetun()
 
     port = requested_port if 0 < requested_port <= 65535 else 3322
@@ -138,6 +198,24 @@ def start_openvpn(config_text: str, requested_port: int = 0, user: str = "", pas
     subprocess.run(["wsl", "-d", "Ubuntu", "-u", "root", "mkdir", "-p", wsl_conf_dir], check=False, creationflags=flags)
 
     ovpn_clean = config_text.replace("\r\n", "\n")
+
+    if via_tor:
+        try:
+            with socket.create_connection(("127.0.0.1", 9052), timeout=1.0):
+                pass
+        except OSError:
+            return {"error": "Tor not running on 127.0.0.1:9052. Start TorControlPanel.exe first."}
+        fwd_port = start_tor_relay(9052)
+        gw_res = subprocess.run(
+            ["wsl", "-d", "Ubuntu", "-u", "root", "sh", "-c", "ip route show | awk '/default/ {print $3}'"],
+            capture_output=True, text=True, creationflags=flags
+        )
+        win_ip = gw_res.stdout.strip().splitlines()[0] if gw_res.stdout.strip() else "172.17.0.1"
+        ovpn_clean = "\n".join(
+            line for line in ovpn_clean.splitlines()
+            if not line.strip().startswith("socks-proxy")
+        )
+        ovpn_clean += f"\nsocks-proxy {win_ip} {fwd_port}\n"
     needs_auth = "auth-user-pass" in ovpn_clean and "<auth-user-pass>" not in ovpn_clean
     if needs_auth and not user:
         return {"error": "OpenVPN config requires Username & Password (enter them below)"}
@@ -278,7 +356,8 @@ def main() -> None:
                     elif ptype == "ovpn":
                         user = msg.get("user", "")
                         pwd = msg.get("pass", "")
-                        send_message(start_openvpn(config_text, req_port, user, pwd))
+                        via_tor = bool(msg.get("viaTor", False))
+                        send_message(start_openvpn(config_text, req_port, user, pwd, via_tor))
                     else:
                         send_message({"error": f"Unknown profile type: {ptype}"})
                 except Exception as ex:

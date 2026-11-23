@@ -41,6 +41,28 @@
       <label for="bypassInput">Bypass list (comma-separated)</label>
       <input id="bypassInput" type="text" placeholder="localhost, 127.0.0.1, *.local" />
     </section>
+
+    <section class="bypass">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0;">
+        <input id="viaTor" type="checkbox" style="width:auto;margin:0;" />
+        <span>Route OpenVPN via Tor (127.0.0.1:9052)</span>
+      </label>
+    </section>
+
+    <section class="bypass">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0;">
+        <input id="killswitch" type="checkbox" style="width:auto;margin:0;" />
+        <span>Killswitch (block browser if disconnected)</span>
+      </label>
+    </section>
+
+    <section class="bypass" style="display:flex;gap:8px;margin-top:8px;">
+      <button id="exportBackupBtn" type="button" style="flex:1;padding:6px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;cursor:pointer;font-size:12px;">Export Backup</button>
+      <label style="flex:1;padding:6px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;cursor:pointer;font-size:12px;text-align:center;margin:0;display:block;">
+        Import Backup
+        <input id="importBackupInput" type="file" accept=".json" hidden />
+      </label>
+    </section>
   </div>
   <script src="popup.js"></script>
 </body>
